@@ -1,0 +1,994 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slime Cluster Finder</title>
+    <script defer src="https://umami.022122.xyz/script.js" data-website-id="2d851522-bb2f-4957-ad87-7405d18f3960"></script>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #111113;
+            color: #edeef0;
+            min-height: 100vh;
+            font-size: 14px;
+            -webkit-font-smoothing: antialiased;
+        }
+        .app { display: flex; height: 100vh; }
+
+        /* Sidebar */
+        .sidebar {
+            width: 300px;
+            min-width: 300px;
+            background: #18191b;
+            border-right: 1px solid #2b2d31;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-header {
+            padding: 20px 16px 16px;
+            border-bottom: 1px solid #2b2d31;
+        }
+        .sidebar-header h1 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #edeef0;
+            letter-spacing: -0.01em;
+        }
+        .sidebar-header h1 span { color: #46a758; }
+        .sidebar-header p {
+            color: #7e838c;
+            font-size: 12px;
+            margin-top: 2px;
+        }
+
+        /* Form section */
+        .form-section {
+            padding: 16px;
+            border-bottom: 1px solid #2b2d31;
+        }
+        .form-section-title {
+            font-size: 11px;
+            font-weight: 500;
+            color: #7e838c;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+        }
+        .form-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .form-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group label {
+            font-size: 12px;
+            color: #b0b4ba;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        input[type="text"],
+        input[type="number"] {
+            background: #111113;
+            border: 1px solid #2b2d31;
+            border-radius: 6px;
+            padding: 7px 10px;
+            color: #edeef0;
+            font-size: 13px;
+            outline: none;
+            width: 100%;
+            transition: border-color 0.15s;
+            font-family: inherit;
+        }
+        input:focus {
+            border-color: #46a758;
+            box-shadow: 0 0 0 1px #46a758;
+        }
+        input::placeholder { color: #4e535b; }
+
+        /* Buttons */
+        .btn-primary {
+            background: #46a758;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.15s;
+            font-family: inherit;
+        }
+        .btn-primary:hover { background: #3d9a50; }
+        .btn-primary:disabled {
+            background: #2b2d31;
+            color: #4e535b;
+            cursor: not-allowed;
+        }
+        .hint-text {
+            color: #4e535b;
+            font-size: 11px;
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+
+        /* Progress */
+        .progress-container {
+            margin-top: 10px;
+            display: none;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #212225;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #46a758;
+            border-radius: 2px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+        .progress-text {
+            font-size: 11px;
+            color: #7e838c;
+            text-align: center;
+            margin-top: 6px;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .searching .progress-fill {
+            width: 100% !important;
+            background: linear-gradient(90deg, #46a758, #5bb98b, #46a758);
+            background-size: 200% 100%;
+            animation: shimmer 2s linear infinite;
+        }
+
+        /* Results */
+        .results-section {
+            flex: 1;
+            overflow-y: auto;
+            border-top: 1px solid #2b2d31;
+        }
+        .results-header {
+            padding: 12px 16px;
+            font-size: 11px;
+            font-weight: 500;
+            color: #7e838c;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: sticky;
+            top: 0;
+            background: #18191b;
+            border-bottom: 1px solid #2b2d31;
+        }
+        .results-header span { color: #4e535b; font-weight: 400; }
+        .result-list { padding: 4px; }
+        .result-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+            transition: background 0.1s;
+        }
+        .result-item:hover { background: #212225; }
+        .result-item.active {
+            background: #1b2e1f;
+            outline: 1px solid #2b5e35;
+        }
+        .result-rank {
+            color: #4e535b;
+            font-size: 11px;
+            min-width: 24px;
+        }
+        .result-coords { flex: 1; color: #b0b4ba; }
+        .result-score {
+            color: #46a758;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .result-bar {
+            width: 40px;
+            height: 4px;
+            background: #212225;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .result-bar-fill { height: 100%; border-radius: 2px; }
+        .result-empty {
+            color: #4e535b;
+            padding: 20px 16px;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        /* Main area */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: #111113;
+        }
+        .map-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+        }
+        .map-container:active { cursor: grabbing; }
+        canvas { position: absolute; top: 0; left: 0; }
+
+        /* Map overlays */
+        .map-info {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            background: rgba(17,17,19,0.85);
+            backdrop-filter: blur(8px);
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #7e838c;
+            pointer-events: none;
+            border: 1px solid #2b2d31;
+        }
+        .map-toolbar {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .map-btn {
+            width: 32px;
+            height: 32px;
+            background: rgba(17,17,19,0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid #2b2d31;
+            color: #b0b4ba;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background 0.15s, color 0.15s;
+            font-family: inherit;
+        }
+        .map-btn:hover {
+            background: rgba(33,34,37,0.9);
+            color: #edeef0;
+        }
+        .map-btn.copied {
+            background: rgba(27,46,31,0.9);
+            color: #46a758;
+            border-color: #2b5e35;
+        }
+        .map-legend {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            display: flex;
+            gap: 12px;
+            background: rgba(17,17,19,0.85);
+            backdrop-filter: blur(8px);
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #2b2d31;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            color: #7e838c;
+        }
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+
+        /* Pattern editor */
+        .advanced-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #7e838c;
+            margin-bottom: 10px;
+            user-select: none;
+        }
+        .advanced-toggle:hover { color: #b0b4ba; }
+        .advanced-toggle .arrow {
+            font-size: 10px;
+            transition: transform 0.15s;
+        }
+        .advanced-toggle .arrow.open { transform: rotate(90deg); }
+        .pattern-editor {
+            margin-bottom: 10px;
+        }
+        .pattern-grid {
+            display: inline-grid;
+            gap: 2px;
+            margin-top: 6px;
+        }
+        .pattern-cell {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            border: 1px solid #2b2d31;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .pattern-cell.off { background: #1b1d1f; }
+        .pattern-cell.on { background: #46a758; }
+        .pattern-cell:hover { border-color: #4e535b; }
+        .pattern-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .pattern-actions button {
+            background: #212225;
+            border: 1px solid #2b2d31;
+            color: #b0b4ba;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .pattern-actions button:hover { background: #2b2d31; color: #edeef0; }
+
+        /* Status bar */
+        .status-bar {
+            background: #18191b;
+            border-top: 1px solid #2b2d31;
+            padding: 4px 12px;
+            font-size: 11px;
+            color: #4e535b;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>Slime <span>Cluster</span> Finder</h1>
+                <p>Java Edition · WASM</p>
+            </div>
+
+            <div class="form-section">
+                <div class="form-section-title">搜索参数</div>
+                <div class="form-group" style="margin-bottom:10px">
+                    <label>种子</label>
+                    <input type="text" id="seed" value="0" placeholder="输入世界种子">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>中心 X</label>
+                        <input type="number" id="ox" value="0" placeholder="方块坐标">
+                    </div>
+                    <div class="form-group">
+                        <label>中心 Z</label>
+                        <input type="number" id="oz" value="0" placeholder="方块坐标">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:10px">
+                    <label>搜索半径（区块）</label>
+                    <input type="number" id="radius" value="500" min="10" max="100000">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>宽度</label>
+                        <input type="number" id="width" value="3" min="1" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label>高度</label>
+                        <input type="number" id="height" value="3" min="1" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label>返回数</label>
+                        <input type="number" id="top" value="" min="1" max="100" placeholder="自动">
+                    </div>
+                </div>
+                <div class="advanced-toggle" onclick="toggleAdvanced()">
+                    <span class="arrow" id="advArrow">▶</span>
+                    <span>自定义图案</span>
+                </div>
+                <div class="pattern-editor" id="patternEditor" style="display:none">
+                    <div class="pattern-grid" id="patternGrid"></div>
+                    <div class="pattern-actions">
+                        <button onclick="fillPattern()">全选</button>
+                        <button onclick="clearPattern()">清空</button>
+                        <button onclick="invertPattern()">反转</button>
+                    </div>
+                </div>
+                <button class="btn-primary" id="searchBtn" onclick="doSearch()" disabled>加载中…</button>
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">准备中…</div>
+                </div>
+                <p class="hint-text">搜索半径可设很大（如 10000+），地图只渲染结果附近区域</p>
+            </div>
+
+            <div class="results-section" id="resultsPanel" style="display:none">
+                <div class="results-header">结果 <span id="resultsCount"></span></div>
+                <div class="result-list" id="resultsList"></div>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="map-container" id="mapContainer">
+                <canvas id="mapCanvas"></canvas>
+                <div class="map-legend">
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#46a758"></div>
+                        <span>史莱姆</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#212225"></div>
+                        <span>普通</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#c4841d;border:1px solid #e5a336;width:6px;height:6px"></div>
+                        <span>匹配</span>
+                    </div>
+                </div>
+                <div class="map-toolbar">
+                    <button class="map-btn" onclick="zoomIn()" title="放大">+</button>
+                    <button class="map-btn" onclick="zoomOut()" title="缩小">−</button>
+                    <button class="map-btn" onclick="resetView()" title="重置视图">⌂</button>
+                    <button class="map-btn" id="copyBtn" onclick="copyHoverCoords()" title="复制坐标">⎘</button>
+                </div>
+                <div class="map-info" id="mapInfo">搜索后查看地图</div>
+            </div>
+            <div class="status-bar">
+                <span id="statusText">就绪</span>
+                <span id="statusTime"></span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { get_slime_bitmap } from './pkg/slime_search.js';
+
+        let wasmReady = false;
+        let workerReady = false;
+        let searchTimer = null;
+        let searchStartTime = 0;
+
+        const worker = new Worker('./worker.js', { type: 'module' });
+        worker.postMessage({ type: 'init' });
+
+        worker.onmessage = function(e) {
+            const msg = e.data;
+            if (msg.type === 'ready') {
+                workerReady = true;
+                updateButtonState();
+            } else if (msg.type === 'progress') {
+                showProgress(msg.progress, msg.status);
+            } else if (msg.type === 'result') {
+                onSearchComplete(msg.results, msg.elapsed);
+            } else if (msg.type === 'error') {
+                onSearchError(msg.error);
+            }
+        };
+
+        const VIEW_RADIUS = 40;
+
+        let mapState = {
+            bitmap: null,
+            cx_min: 0, cz_min: 0,
+            mapW: 0, mapH: 0,
+            cellSize: 32,
+            offsetX: 0, offsetY: 0,
+            dragging: false,
+            dragStartX: 0, dragStartY: 0,
+            dragOffsetX: 0, dragOffsetY: 0,
+            results: [],
+            activeResult: -1,
+            patternW: 3, patternH: 3,
+            seedHi: 0, seedLo: 0,
+            centerCx: 0, centerCz: 0,
+            hoverChunkX: null, hoverChunkZ: null,
+        };
+
+        // Pattern editor state
+        let patternMask = null; // null = full rect, array of bools when custom
+        let advancedOpen = false;
+
+        window.toggleAdvanced = function() {
+            advancedOpen = !advancedOpen;
+            document.getElementById('patternEditor').style.display = advancedOpen ? 'block' : 'none';
+            document.getElementById('advArrow').classList.toggle('open', advancedOpen);
+            if (advancedOpen) rebuildPatternGrid();
+        };
+
+        function rebuildPatternGrid() {
+            const pw = parseInt(document.getElementById('width').value) || 3;
+            const ph = parseInt(document.getElementById('height').value) || 3;
+            const grid = document.getElementById('patternGrid');
+            grid.style.gridTemplateColumns = `repeat(${pw}, 28px)`;
+
+            // Preserve existing mask if same size, otherwise reset to all-on
+            if (!patternMask || patternMask.length !== pw * ph) {
+                patternMask = new Array(pw * ph).fill(true);
+            }
+
+            grid.innerHTML = '';
+            for (let i = 0; i < pw * ph; i++) {
+                const cell = document.createElement('div');
+                cell.className = `pattern-cell ${patternMask[i] ? 'on' : 'off'}`;
+                cell.dataset.idx = i;
+                cell.addEventListener('click', () => {
+                    patternMask[i] = !patternMask[i];
+                    cell.className = `pattern-cell ${patternMask[i] ? 'on' : 'off'}`;
+                });
+                grid.appendChild(cell);
+            }
+        }
+
+        window.fillPattern = function() {
+            if (patternMask) patternMask.fill(true);
+            rebuildPatternGrid();
+        };
+        window.clearPattern = function() {
+            if (patternMask) patternMask.fill(false);
+            rebuildPatternGrid();
+        };
+        window.invertPattern = function() {
+            if (patternMask) patternMask = patternMask.map(v => !v);
+            rebuildPatternGrid();
+        };
+
+        // Rebuild grid when width/height changes
+        document.getElementById('width').addEventListener('change', () => {
+            if (advancedOpen) { patternMask = null; rebuildPatternGrid(); }
+        });
+        document.getElementById('height').addEventListener('change', () => {
+            if (advancedOpen) { patternMask = null; rebuildPatternGrid(); }
+        });
+
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('mapContainer');
+
+        function resizeCanvas() {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            drawMap();
+        }
+
+        function parseSeed() {
+            const s = document.getElementById('seed').value.trim();
+            try {
+                const big = BigInt(s);
+                const signed = BigInt.asIntN(64, big);
+                const hi = Number(BigInt.asIntN(32, signed >> 32n));
+                const lo = Number(BigInt.asUintN(32, signed));
+                return { hi, lo, str: signed.toString() };
+            } catch {
+                return null;
+            }
+        }
+
+        function loadMapAround(centerCx, centerCz) {
+            const viewSize = VIEW_RADIUS * 2 + 1;
+            const cx_min = centerCx - VIEW_RADIUS;
+            const cz_min = centerCz - VIEW_RADIUS;
+
+            const bitmap = get_slime_bitmap(mapState.seedHi, mapState.seedLo, cx_min, cz_min, viewSize, viewSize);
+
+            mapState.bitmap = bitmap;
+            mapState.cx_min = cx_min;
+            mapState.cz_min = cz_min;
+            mapState.mapW = viewSize;
+            mapState.mapH = viewSize;
+            mapState.centerCx = centerCx;
+            mapState.centerCz = centerCz;
+
+            mapState.cellSize = 32;
+            mapState.offsetX = (canvas.width - viewSize * mapState.cellSize) / 2;
+            mapState.offsetY = (canvas.height - viewSize * mapState.cellSize) / 2;
+
+            drawMap();
+        }
+
+        function updateButtonState() {
+            const btn = document.getElementById('searchBtn');
+            if (wasmReady && workerReady) {
+                btn.disabled = false;
+                btn.textContent = '搜索';
+            }
+        }
+
+        function showProgress(pct, text) {
+            const container = document.getElementById('progressContainer');
+            const fill = document.getElementById('progressFill');
+            const textEl = document.getElementById('progressText');
+            container.style.display = 'block';
+            if (pct < 0) {
+                container.classList.add('searching');
+            } else {
+                container.classList.remove('searching');
+                fill.style.width = pct + '%';
+            }
+            textEl.textContent = text || '';
+        }
+
+        function hideProgress() {
+            document.getElementById('progressContainer').style.display = 'none';
+            document.getElementById('progressContainer').classList.remove('searching');
+            if (searchTimer) { clearInterval(searchTimer); searchTimer = null; }
+        }
+
+        window.doSearch = function() {
+            const seed = parseSeed();
+            if (!seed) { alert('种子格式无效'); return; }
+
+            mapState.seedHi = seed.hi;
+            mapState.seedLo = seed.lo;
+
+            const blockX = parseInt(document.getElementById('ox').value) || 0;
+            const blockZ = parseInt(document.getElementById('oz').value) || 0;
+            const ox = Math.floor(blockX / 16);
+            const oz = Math.floor(blockZ / 16);
+            const radius = parseInt(document.getElementById('radius').value) || 500;
+            const pw = parseInt(document.getElementById('width').value) || 3;
+            const ph = parseInt(document.getElementById('height').value) || 3;
+            const topN = parseInt(document.getElementById('top').value) || (pw * ph);
+
+            mapState.patternW = pw;
+            mapState.patternH = ph;
+            mapState._searchOx = ox;
+            mapState._searchOz = oz;
+
+            // Build pattern_mask if advanced mode is on and not all-true
+            let mask = null;
+            if (advancedOpen && patternMask && patternMask.length === pw * ph) {
+                const allTrue = patternMask.every(v => v);
+                if (!allTrue) mask = patternMask;
+            }
+
+            const params = {
+                seed: seed.str,
+                origin_x: ox,
+                origin_z: oz,
+                search_radius: radius,
+                pattern_w: pw,
+                pattern_h: ph,
+                top_n: topN,
+            };
+            if (mask) params.pattern_mask = mask;
+
+            document.getElementById('searchBtn').disabled = true;
+            document.getElementById('searchBtn').textContent = '搜索中…';
+
+            const totalChunks = (radius * 2 + 1) ** 2;
+            showProgress(-1, `搜索 ${totalChunks.toLocaleString()} 个区块…`);
+
+            searchStartTime = performance.now();
+            searchTimer = setInterval(() => {
+                const elapsed = ((performance.now() - searchStartTime) / 1000).toFixed(1);
+                document.getElementById('progressText').textContent =
+                    `搜索 ${totalChunks.toLocaleString()} 个区块… ${elapsed}s`;
+            }, 200);
+
+            worker.postMessage({ type: 'search', params });
+        };
+
+        function onSearchComplete(results, elapsed) {
+            hideProgress();
+            const pw = mapState.patternW;
+            const ph = mapState.patternH;
+            const ox = mapState._searchOx || 0;
+            const oz = mapState._searchOz || 0;
+
+            mapState.results = results || [];
+            // total comes from results (respects mask), fallback to pw*ph
+            const total = (mapState.results.length > 0) ? mapState.results[0].total : pw * ph;
+            showResults(mapState.results, total, elapsed);
+
+            if (mapState.results.length > 0) {
+                mapState.activeResult = 0;
+                const r = mapState.results[0];
+                loadMapAround(r.chunk_x + Math.floor(pw / 2), r.chunk_z + Math.floor(ph / 2));
+            } else {
+                loadMapAround(ox, oz);
+            }
+
+            const radius = parseInt(document.getElementById('radius').value) || 500;
+            document.getElementById('statusText').textContent =
+                `${(radius*2+1)}×${(radius*2+1)} 区块 · ${mapState.results.length} 个结果`;
+            document.getElementById('statusTime').textContent = `${elapsed.toFixed(1)}ms`;
+
+            document.getElementById('searchBtn').disabled = false;
+            document.getElementById('searchBtn').textContent = '搜索';
+        }
+
+        function onSearchError(error) {
+            hideProgress();
+            alert('搜索出错: ' + error);
+            document.getElementById('searchBtn').disabled = false;
+            document.getElementById('searchBtn').textContent = '搜索';
+        }
+
+        function showResults(results, total, elapsed) {
+            const panel = document.getElementById('resultsPanel');
+            const list = document.getElementById('resultsList');
+            panel.style.display = 'block';
+            document.getElementById('resultsCount').textContent = `${results.length} 个`;
+
+            if (!results.length) {
+                list.innerHTML = '<div class="result-empty">未找到结果</div>';
+                return;
+            }
+
+            list.innerHTML = results.map((r, i) => {
+                const pct = (r.matched / total * 100).toFixed(0);
+                const color = r.matched === total ? '#46a758' : (pct >= 70 ? '#c4841d' : '#cd3131');
+                const star = r.matched === total ? ' ✓' : '';
+                const bx = r.chunk_x * 16;
+                const bz = r.chunk_z * 16;
+                return `<div class="result-item ${i === 0 ? 'active' : ''}" onclick="selectResult(${i})">
+                    <span class="result-rank">${i+1}</span>
+                    <span class="result-coords">${bx}, ${bz}</span>
+                    <span class="result-score">${r.matched}/${total}${star}</span>
+                    <div class="result-bar"><div class="result-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+                </div>`;
+            }).join('');
+        }
+
+        window.selectResult = function(idx) {
+            mapState.activeResult = idx;
+            document.querySelectorAll('.result-item').forEach((el, i) => {
+                el.classList.toggle('active', i === idx);
+            });
+
+            const r = mapState.results[idx];
+            if (r) {
+                const cx = r.chunk_x + Math.floor(mapState.patternW / 2);
+                const cz = r.chunk_z + Math.floor(mapState.patternH / 2);
+                loadMapAround(cx, cz);
+            }
+        };
+
+        function drawMap() {
+            ctx.fillStyle = '#111113';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!mapState.bitmap) {
+                ctx.fillStyle = '#4e535b';
+                ctx.font = '13px -apple-system, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('点击「搜索」开始', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            const { bitmap, cx_min, cz_min, mapW, mapH, cellSize, offsetX, offsetY } = mapState;
+
+            const startX = Math.max(0, Math.floor(-offsetX / cellSize));
+            const startZ = Math.max(0, Math.floor(-offsetY / cellSize));
+            const endX = Math.min(mapW, Math.ceil((canvas.width - offsetX) / cellSize));
+            const endZ = Math.min(mapH, Math.ceil((canvas.height - offsetY) / cellSize));
+
+            for (let iz = startZ; iz < endZ; iz++) {
+                for (let ix = startX; ix < endX; ix++) {
+                    const isSlime = bitmap[iz * mapW + ix];
+                    const px = offsetX + ix * cellSize;
+                    const pz = offsetY + iz * cellSize;
+                    ctx.fillStyle = isSlime ? '#46a758' : '#1b1d1f';
+                    ctx.fillRect(px, pz, cellSize - 0.5, cellSize - 0.5);
+                }
+            }
+
+            if (cellSize >= 8) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                ctx.lineWidth = 0.5;
+                for (let ix = startX; ix <= endX; ix++) {
+                    const px = offsetX + ix * cellSize;
+                    ctx.beginPath();
+                    ctx.moveTo(px, offsetY + startZ * cellSize);
+                    ctx.lineTo(px, offsetY + endZ * cellSize);
+                    ctx.stroke();
+                }
+                for (let iz = startZ; iz <= endZ; iz++) {
+                    const pz = offsetY + iz * cellSize;
+                    ctx.beginPath();
+                    ctx.moveTo(offsetX + startX * cellSize, pz);
+                    ctx.lineTo(offsetX + endX * cellSize, pz);
+                    ctx.stroke();
+                }
+            }
+
+            const pw = mapState.patternW;
+            const ph = mapState.patternH;
+
+            mapState.results.forEach((r, i) => {
+                const rx = r.chunk_x - cx_min;
+                const rz = r.chunk_z - cz_min;
+                if (rx + pw < 0 || rx >= mapW || rz + ph < 0 || rz >= mapH) return;
+
+                const px = offsetX + rx * cellSize;
+                const pz = offsetY + rz * cellSize;
+
+                if (i === mapState.activeResult) {
+                    ctx.fillStyle = 'rgba(196, 132, 29, 0.1)';
+                    ctx.fillRect(px, pz, pw * cellSize, ph * cellSize);
+                    ctx.strokeStyle = '#e5a336';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(px, pz, pw * cellSize, ph * cellSize);
+                    if (cellSize >= 4) {
+                        ctx.fillStyle = '#e5a336';
+                        ctx.font = `600 ${Math.max(10, cellSize * 0.8)}px -apple-system, sans-serif`;
+                        ctx.textAlign = 'left';
+                        ctx.fillText(`#${i + 1}  ${r.matched}/${r.total}`, px + 3, pz - 5);
+                    }
+                } else {
+                    ctx.strokeStyle = 'rgba(196, 132, 29, 0.25)';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(px, pz, pw * cellSize, ph * cellSize);
+                }
+            });
+
+            if (cellSize >= 10) {
+                ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                ctx.font = `${Math.max(8, cellSize * 0.55)}px 'SF Mono', Consolas, monospace`;
+                ctx.textAlign = 'center';
+                for (let ix = startX; ix < endX; ix += Math.max(1, Math.floor(40 / cellSize))) {
+                    const cx = cx_min + ix;
+                    const px = offsetX + ix * cellSize + cellSize / 2;
+                    ctx.fillText(cx.toString(), px, offsetY + startZ * cellSize - 2);
+                }
+                ctx.textAlign = 'right';
+                for (let iz = startZ; iz < endZ; iz += Math.max(1, Math.floor(40 / cellSize))) {
+                    const cz = cz_min + iz;
+                    const pz = offsetY + iz * cellSize + cellSize / 2;
+                    ctx.fillText(cz.toString(), offsetX + startX * cellSize - 4, pz + 3);
+                }
+            }
+        }
+
+        // Mouse drag
+        container.addEventListener('mousedown', (e) => {
+            mapState.dragging = true;
+            mapState.dragStartX = e.clientX;
+            mapState.dragStartY = e.clientY;
+            mapState.dragOffsetX = mapState.offsetX;
+            mapState.dragOffsetY = mapState.offsetY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (mapState.dragging) {
+                mapState.offsetX = mapState.dragOffsetX + (e.clientX - mapState.dragStartX);
+                mapState.offsetY = mapState.dragOffsetY + (e.clientY - mapState.dragStartY);
+                drawMap();
+            }
+            if (mapState.bitmap) {
+                const rect = canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                const ix = Math.floor((mx - mapState.offsetX) / mapState.cellSize);
+                const iz = Math.floor((my - mapState.offsetY) / mapState.cellSize);
+                const cx = mapState.cx_min + ix;
+                const cz = mapState.cz_min + iz;
+                const inBounds = ix >= 0 && ix < mapState.mapW && iz >= 0 && iz < mapState.mapH;
+                const isSlime = inBounds ? mapState.bitmap[iz * mapState.mapW + ix] : 0;
+                mapState.hoverChunkX = cx;
+                mapState.hoverChunkZ = cz;
+                document.getElementById('mapInfo').textContent =
+                    `区块 (${cx}, ${cz}) · 方块 (${cx*16}~${cx*16+15}, ${cz*16}~${cz*16+15})${isSlime ? ' · 史莱姆' : ''}`;
+            }
+        });
+
+        window.addEventListener('mouseup', () => { mapState.dragging = false; });
+
+        // Scroll zoom
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const oldSize = mapState.cellSize;
+            if (e.deltaY < 0) {
+                mapState.cellSize = Math.min(32, mapState.cellSize + 1);
+            } else {
+                mapState.cellSize = Math.max(1, mapState.cellSize - 1);
+            }
+            const scale = mapState.cellSize / oldSize;
+            mapState.offsetX = mx - (mx - mapState.offsetX) * scale;
+            mapState.offsetY = my - (my - mapState.offsetY) * scale;
+            drawMap();
+        }, { passive: false });
+
+        window.zoomIn = function() {
+            const cx = canvas.width / 2, cy = canvas.height / 2;
+            const oldSize = mapState.cellSize;
+            mapState.cellSize = Math.min(32, mapState.cellSize + 2);
+            const scale = mapState.cellSize / oldSize;
+            mapState.offsetX = cx - (cx - mapState.offsetX) * scale;
+            mapState.offsetY = cy - (cy - mapState.offsetY) * scale;
+            drawMap();
+        };
+
+        window.zoomOut = function() {
+            const cx = canvas.width / 2, cy = canvas.height / 2;
+            const oldSize = mapState.cellSize;
+            mapState.cellSize = Math.max(1, mapState.cellSize - 2);
+            const scale = mapState.cellSize / oldSize;
+            mapState.offsetX = cx - (cx - mapState.offsetX) * scale;
+            mapState.offsetY = cy - (cy - mapState.offsetY) * scale;
+            drawMap();
+        };
+
+        window.resetView = function() {
+            if (!mapState.bitmap) return;
+            mapState.cellSize = 32;
+            mapState.offsetX = (canvas.width - mapState.mapW * mapState.cellSize) / 2;
+            mapState.offsetY = (canvas.height - mapState.mapH * mapState.cellSize) / 2;
+            drawMap();
+        };
+
+        window.copyHoverCoords = function() {
+            if (mapState.hoverChunkX == null) return;
+            const bx = mapState.hoverChunkX * 16;
+            const bz = mapState.hoverChunkZ * 16;
+            const text = `${bx} ${bz}`;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = '✓';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = '⎘';
+                    btn.classList.remove('copied');
+                }, 1200);
+            });
+        };
+
+        // Init
+        async function loadWasm() {
+            try {
+                await init();
+                wasmReady = true;
+                updateButtonState();
+                document.getElementById('statusText').textContent = 'WASM 就绪';
+            } catch (e) {
+                document.getElementById('searchBtn').textContent = 'WASM 加载失败';
+                document.getElementById('statusText').textContent = '错误: ' + e.message;
+                console.error(e);
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        loadWasm();
+    </script>
+</body>
+</html>
