@@ -4,6 +4,7 @@ export const memory: WebAssembly.Memory;
 export const get_slime_bitmap: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
 export const init: () => void;
 export const is_slime_chunk: (a: number, b: number, c: number, d: number) => number;
+export const search_connected_chunks: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
 export const search_slime_chunks: (a: number, b: number) => [number, number];
 export const __wbindgen_free: (a: number, b: number, c: number) => void;
 export const __wbindgen_malloc: (a: number, b: number) => number;

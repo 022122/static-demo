@@ -1,10 +1,6 @@
 /* @ts-self-types="./slime_search.d.ts" */
 
 /**
- * WASM 导出：获取指定区域的史莱姆区块位图
- *
- * 返回一个 Uint8Array，每个字节 0 或 1，按行优先排列
- * 用于前端 Canvas 绘制地图
  * @param {number} seed_hi
  * @param {number} seed_lo
  * @param {number} cx_min
@@ -39,6 +35,33 @@ export function init() {
 export function is_slime_chunk(seed_hi, seed_lo, chunk_x, chunk_z) {
     const ret = wasm.is_slime_chunk(seed_hi, seed_lo, chunk_x, chunk_z);
     return ret !== 0;
+}
+
+/**
+ * WASM 导出：获取指定区域的史莱姆区块位图
+ *
+ * 返回一个 Uint8Array，每个字节 0 或 1，按行优先排列
+ * 用于前端 Canvas 绘制地图
+ * WASM 导出：搜索最大连通史莱姆区块群
+ * @param {number} seed_hi
+ * @param {number} seed_lo
+ * @param {number} origin_x
+ * @param {number} origin_z
+ * @param {number} search_radius
+ * @param {number} top_n
+ * @returns {string}
+ */
+export function search_connected_chunks(seed_hi, seed_lo, origin_x, origin_z, search_radius, top_n) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.search_connected_chunks(seed_hi, seed_lo, origin_x, origin_z, search_radius, top_n);
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
 }
 
 /**

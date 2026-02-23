@@ -1,12 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 
-/**
- * WASM 导出：获取指定区域的史莱姆区块位图
- *
- * 返回一个 Uint8Array，每个字节 0 或 1，按行优先排列
- * 用于前端 Canvas 绘制地图
- */
 export function get_slime_bitmap(seed_hi: number, seed_lo: number, cx_min: number, cz_min: number, width: number, height: number): Uint8Array;
 
 /**
@@ -21,6 +15,15 @@ export function init(): void;
 export function is_slime_chunk(seed_hi: number, seed_lo: number, chunk_x: number, chunk_z: number): boolean;
 
 /**
+ * WASM 导出：获取指定区域的史莱姆区块位图
+ *
+ * 返回一个 Uint8Array，每个字节 0 或 1，按行优先排列
+ * 用于前端 Canvas 绘制地图
+ * WASM 导出：搜索最大连通史莱姆区块群
+ */
+export function search_connected_chunks(seed_hi: number, seed_lo: number, origin_x: number, origin_z: number, search_radius: number, top_n: number): string;
+
+/**
  * WASM 导出：搜索史莱姆区块多联结构
  */
 export function search_slime_chunks(params_json: string): string;
@@ -32,6 +35,7 @@ export interface InitOutput {
     readonly get_slime_bitmap: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly init: () => void;
     readonly is_slime_chunk: (a: number, b: number, c: number, d: number) => number;
+    readonly search_connected_chunks: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly search_slime_chunks: (a: number, b: number) => [number, number];
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
