@@ -1,0 +1,651 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MC 群系查找器</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #0a0a0a; --bg-secondary: #111111;
+            --bg-input: rgba(255,255,255,0.05); --border-color: rgba(255,255,255,0.08);
+            --border-hover: rgba(255,255,255,0.15); --text-primary: #fafafa;
+            --text-secondary: #a1a1aa; --text-muted: #71717a;
+            --accent: #3b82f6; --accent-glow: rgba(59,130,246,0.15);
+            --success: #22c55e; --danger: #ef4444;
+            --gradient-1: linear-gradient(135deg,#3b82f6,#8b5cf6);
+            --radius-sm: 8px;
+        }
+        body { font-family:'Inter',-apple-system,system-ui,sans-serif; background:var(--bg-primary); color:var(--text-primary); display:flex; height:100vh; overflow:hidden; -webkit-font-smoothing:antialiased; }
+        .sidebar { width:360px; min-width:360px; background:var(--bg-secondary); border-right:1px solid var(--border-color); display:flex; flex-direction:column; overflow:hidden; }
+        .sidebar-header { padding:20px 20px 16px; border-bottom:1px solid var(--border-color); }
+        .logo { display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+        .logo-icon { width:32px; height:32px; border-radius:8px; background:var(--gradient-1); display:flex; align-items:center; justify-content:center; font-size:16px; }
+        .logo h1 { font-size:16px; font-weight:600; letter-spacing:-0.02em; }
+        .logo-subtitle { font-size:12px; color:var(--text-muted); margin-top:2px; padding-left:42px; }
+        .sidebar-body { flex:1; overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:14px; }
+        .sidebar-body::-webkit-scrollbar { width:4px; }
+        .sidebar-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:4px; }
+        .form-group { display:flex; flex-direction:column; gap:6px; }
+        .form-group label { font-size:13px; font-weight:500; color:var(--text-secondary); }
+        .form-row { display:flex; gap:10px; }
+        .form-row .form-group { flex:1; }
+        input, select { width:100%; background:var(--bg-input); border:1px solid var(--border-color); color:var(--text-primary); padding:8px 12px; border-radius:var(--radius-sm); font-size:13px; font-family:inherit; transition:border-color 0.2s,box-shadow 0.2s; outline:none; }
+        input:focus, select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+        select { cursor:pointer; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2371717a' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; padding-right:28px; }
+        select option { background:#1a1a1a; color:#fafafa; }
+        .btn-group { display:flex; gap:8px; }
+        .btn { flex:1; padding:10px 16px; border:none; border-radius:var(--radius-sm); font-size:13px; font-weight:500; font-family:inherit; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+        .btn-primary { background:var(--gradient-1); color:white; box-shadow:0 1px 2px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.1); }
+        .btn-primary:hover { opacity:0.9; transform:translateY(-1px); }
+        .btn-primary:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
+        .btn-secondary { background:var(--bg-input); color:var(--text-secondary); border:1px solid var(--border-color); }
+        .btn-secondary:hover { background:rgba(255,255,255,0.08); color:var(--text-primary); }
+        .status-bar { padding:8px 20px; border-top:1px solid var(--border-color); font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px; min-height:36px; }
+        .status-dot { width:6px; height:6px; border-radius:50%; background:var(--text-muted); flex-shrink:0; }
+        .status-dot.ready { background:var(--success); }
+        .status-dot.loading { background:var(--accent); animation:pulse 1.5s infinite; }
+        .status-dot.error { background:var(--danger); }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .results-header { display:flex; align-items:center; justify-content:space-between; padding:0 2px; }
+        .results-title { font-size:13px; font-weight:500; color:var(--text-secondary); }
+        .results-count { font-size:11px; color:var(--text-muted); background:var(--bg-input); padding:2px 8px; border-radius:10px; }
+        .results-list { display:flex; flex-direction:column; gap:4px; max-height:300px; overflow-y:auto; }
+        .results-list::-webkit-scrollbar { width:4px; }
+        .results-list::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:4px; }
+        .result-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--radius-sm); cursor:pointer; transition:background 0.15s; border:1px solid transparent; }
+        .result-item:hover { background:rgba(255,255,255,0.04); border-color:var(--border-color); }
+        .result-item.active { background:var(--accent-glow); border-color:rgba(59,130,246,0.3); }
+        .result-rank { width:22px; height:22px; border-radius:6px; background:var(--bg-input); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--text-muted); flex-shrink:0; }
+        .result-item:nth-child(1) .result-rank { background:rgba(234,179,8,0.15); color:#eab308; }
+        .result-item:nth-child(2) .result-rank { background:rgba(148,163,184,0.15); color:#94a3b8; }
+        .result-item:nth-child(3) .result-rank { background:rgba(180,83,9,0.15); color:#d97706; }
+        .result-info { flex:1; min-width:0; }
+        .result-coords { font-size:13px; font-weight:500; font-variant-numeric:tabular-nums; }
+        .result-meta { font-size:11px; color:var(--text-muted); margin-top:1px; }
+        .result-chunks { font-size:12px; font-weight:500; color:var(--accent); white-space:nowrap; }
+        .map-container { flex:1; position:relative; overflow:hidden; background:#050505; cursor:grab; }
+        .map-overlay { position:absolute; padding:6px 12px; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:12px; color:var(--text-secondary); pointer-events:none; font-variant-numeric:tabular-nums; z-index:10; }
+        .map-coords { top:12px; right:12px; }
+        .map-hint { bottom:12px; left:12px; font-size:11px; color:var(--text-muted); }
+        .map-zoom { top:12px; left:12px; }
+        #tileLayer canvas { position:absolute; image-rendering:pixelated; }
+        @media (max-width:768px) { .sidebar { width:100%; min-width:0; max-height:50vh; border-right:none; border-bottom:1px solid var(--border-color); } body { flex-direction:column; } }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon">🗺️</div>
+                <h1>MC 群系查找器</h1>
+                <a href="https://github.com/022122/mc-biome-finder" target="_blank" rel="noopener" title="GitHub" style="margin-left:auto;color:var(--text-muted);transition:color 0.2s;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                </a>
+            </div>
+            <div class="logo-subtitle">Minecraft Java Edition Biome Finder</div>
+        </div>
+        <div class="sidebar-body">
+            <div class="form-group"><label>种子 Seed</label><input type="text" id="seed" value="123456789" placeholder="输入世界种子..."></div>
+            <div class="form-row">
+                <div class="form-group"><label>版本</label><select id="version">
+                    <option value="1.21" selected>1.21</option><option value="1.20">1.20</option><option value="1.19">1.19</option>
+                    <option value="1.18">1.18</option><option value="1.17">1.17</option><option value="1.16">1.16</option>
+                    <option value="1.15">1.15</option><option value="1.14">1.14</option><option value="1.12">1.12</option>
+                </select></div>
+                <div class="form-group"><label>目标群系</label><select id="biome">
+                    <option value="14">🍄 蘑菇岛</option><option value="185">🌸 樱花树林</option><option value="186">🌿 苍白花园</option>
+                    <option value="21">🌴 丛林</option><option value="37">🏜️ 恶地</option><option value="177">🌼 草甸</option>
+                    <option value="183">🕳️ 深暗之域</option><option value="184">🌳 红树林沼泽</option><option value="175">🌱 繁茂洞穴</option>
+                    <option value="132">🌺 繁花森林</option><option value="140">❄️ 冰刺</option><option value="168">🎋 竹林</option>
+                    <option value="29">🌲 黑森林</option><option value="6">💧 沼泽</option><option value="1">🌾 平原</option>
+                    <option value="2">🏝️ 沙漠</option><option value="4">🌳 森林</option><option value="5">🌲 针叶林</option>
+                </select></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>窗口 (区块)</label><input type="number" id="windowSize" value="16" min="4" max="64"></div>
+                <div class="form-group"><label>搜索半径 (方块)</label><input type="number" id="radius" value="10000" min="1000" max="100000" step="1000"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>原点 X</label><input type="number" id="originX" value="0"></div>
+                <div class="form-group"><label>原点 Z</label><input type="number" id="originZ" value="0"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>返回数量</label><input type="number" id="count" value="20" min="1" max="100"></div>
+                <div class="form-group" style="justify-content:flex-end;"><label>&nbsp;</label></div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" id="searchBtn" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>搜索群系
+                </button>
+                <button class="btn btn-secondary" id="renderBtn" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>刷新地图
+                </button>
+            </div>
+            <div id="resultsSection" style="display:none;">
+                <div class="results-header"><span class="results-title" id="resultsTitle">搜索结果</span><span class="results-count" id="resultsCount">0</span></div>
+                <div style="height:8px;"></div>
+                <div class="results-list" id="resultsList"></div>
+            </div>
+        </div>
+        <div class="status-bar"><div class="status-dot" id="statusDot"></div><span id="statusText">正在加载 WASM 模块...</span></div>
+    </div>
+
+    <div class="map-container" id="mapContainer">
+        <div id="tileLayer" style="position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform;"></div>
+        <canvas id="overlayCanvas" style="position:absolute;top:0;left:0;pointer-events:none;z-index:5;"></canvas>
+        <div class="map-overlay map-coords" id="mapCoords">X: 0 &nbsp; Z: 0</div>
+        <div class="map-overlay map-zoom" id="mapZoom">1x</div>
+        <div class="map-overlay map-hint">滚轮缩放 · 拖拽平移</div>
+    </div>
+
+    <script type="module">
+        // ===== Worker-Pooled Tile Map Engine =====
+        // All WASM computation runs in Web Workers — main thread stays at 60fps
+        const TILE_PX = 256;
+        const NUM_WORKERS = Math.min(navigator.hardwareConcurrency || 4, 8);
+        let viewX = 0, viewZ = 0;
+        let zoom = 0.5;
+        let isDragging = false, dragSX = 0, dragSY = 0, dragVX = 0, dragVZ = 0;
+        let markers = [];
+        let workersReady = 0;
+        let tileIdCounter = 0;
+        let viewGeneration = 0; // incremented on each updateView to cancel stale tiles
+
+        const cache = new Map();
+        const inflight = new Map(); // tileId -> { key, scale, tx, tz, generation }
+        const inflightKeys = new Set(); // quick lookup for pending keys
+        const MAX_CACHE = 600;
+
+        const tileLayer = document.getElementById('tileLayer');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const overlayCtx = overlayCanvas.getContext('2d');
+        const container = document.getElementById('mapContainer');
+
+        function setStatus(t, s='loading') {
+            document.getElementById('statusText').textContent = t;
+            document.getElementById('statusDot').className = 'status-dot ' + s;
+        }
+
+        function getParams() {
+            return {
+                seed: parseInt(document.getElementById('seed').value) || 0,
+                version: document.getElementById('version').value,
+                biome: parseInt(document.getElementById('biome').value),
+                windowSize: parseInt(document.getElementById('windowSize').value) || 16,
+                radius: parseInt(document.getElementById('radius').value) || 10000,
+                originX: parseInt(document.getElementById('originX').value) || 0,
+                originZ: parseInt(document.getElementById('originZ').value) || 0,
+                count: parseInt(document.getElementById('count').value) || 20,
+            };
+        }
+
+        function getScale() {
+            if (zoom >= 1) return 4;
+            if (zoom >= 0.25) return 16;
+            return 64;
+        }
+
+        function tileWorld(scale) { return TILE_PX * scale; }
+        function w2t(w, scale) { return Math.floor(w / tileWorld(scale)); }
+        function tileKey(s, tx, tz) { return s + ':' + tx + ':' + tz; }
+
+        // ===== Worker Pool =====
+        const workers = [];
+        const idleWorkers = [];
+        const tileQueue = [];   // { id, data, generation }
+        // Parallel search state
+        let searchShardsPending = 0;
+        let searchShardResults = [];
+        let searchResolve = null;
+        let searchReject = null;
+
+        function createWorkers() {
+            for (let i = 0; i < NUM_WORKERS; i++) {
+                const w = new Worker('./tile-worker.js', { type: 'module' });
+                w.onmessage = handleWorkerMsg.bind(null, i);
+                w.onerror = e => console.error('Worker error:', e);
+                w._busy = false;
+                workers.push(w);
+            }
+        }
+
+        function handleWorkerMsg(wIdx, e) {
+            const msg = e.data;
+            const w = workers[wIdx];
+
+            if (msg.type === 'ready') {
+                workersReady++;
+                idleWorkers.push(wIdx);
+                if (workersReady === NUM_WORKERS) {
+                    document.getElementById('searchBtn').disabled = false;
+                    document.getElementById('renderBtn').disabled = false;
+                    setStatus(`就绪 (${NUM_WORKERS} workers)`, 'ready');
+                    updateView();
+                } else {
+                    setStatus(`加载 WASM... (${workersReady}/${NUM_WORKERS})`, 'loading');
+                }
+                drainQueue();
+                return;
+            }
+
+            if (msg.type === 'tile-done') {
+                w._busy = false;
+                idleWorkers.push(wIdx);
+                const info = inflight.get(msg.id);
+                if (info) {
+                    inflight.delete(msg.id);
+                    inflightKeys.delete(info.key);
+                    // Only use result if generation matches (not stale)
+                    if (info.generation === viewGeneration) {
+                        const rgba = new Uint8ClampedArray(msg.rgba);
+                        const c = document.createElement('canvas');
+                        c.width = msg.size; c.height = msg.size;
+                        c.style.position = 'absolute';
+                        c.style.imageRendering = 'pixelated';
+                        c.getContext('2d').putImageData(new ImageData(rgba, msg.size, msg.size), 0, 0);
+
+                        evictCache();
+                        const tile = { canvas: c, scale: info.scale, tx: info.tx, tz: info.tz, key: info.key };
+                        cache.set(info.key, tile);
+
+                        if (info.scale === getScale()) {
+                            c.style.left = (info.tx * TILE_PX) + 'px';
+                            c.style.top = (info.tz * TILE_PX) + 'px';
+                            c.dataset.tk = info.key;
+                            tileLayer.appendChild(c);
+                        }
+                    }
+                }
+                drainQueue();
+                return;
+            }
+
+            if (msg.type === 'tile-error') {
+                w._busy = false;
+                idleWorkers.push(wIdx);
+                const info = inflight.get(msg.id);
+                if (info) { inflight.delete(msg.id); inflightKeys.delete(info.key); }
+                drainQueue();
+                return;
+            }
+
+            if (msg.type === 'shard-done') {
+                w._busy = false;
+                idleWorkers.push(wIdx);
+                if (msg.results) searchShardResults.push(...msg.results);
+                searchShardsPending--;
+                if (searchShardsPending === 0 && searchResolve) {
+                    searchResolve(searchShardResults);
+                    searchShardResults = [];
+                    searchResolve = null;
+                    searchReject = null;
+                }
+                drainQueue();
+                return;
+            }
+
+            if (msg.type === 'shard-error') {
+                w._busy = false;
+                idleWorkers.push(wIdx);
+                searchShardsPending--;
+                if (searchShardsPending === 0 && searchResolve) {
+                    searchResolve(searchShardResults);
+                    searchShardResults = [];
+                    searchResolve = null;
+                    searchReject = null;
+                }
+                drainQueue();
+                return;
+            }
+        }
+
+        function drainQueue() {
+            while (tileQueue.length > 0 && idleWorkers.length > 0) {
+                const task = tileQueue.shift();
+                // Skip stale tasks
+                if (task.generation !== viewGeneration) {
+                    const info = inflight.get(task.id);
+                    if (info) { inflight.delete(task.id); inflightKeys.delete(info.key); }
+                    continue;
+                }
+                const wIdx = idleWorkers.shift();
+                const w = workers[wIdx];
+                w._busy = true;
+                w.postMessage(task.data);
+            }
+        }
+
+        function evictCache() {
+            if (cache.size >= MAX_CACHE) {
+                const oldest = cache.keys().next().value;
+                const old = cache.get(oldest);
+                if (old.canvas.parentNode) old.canvas.remove();
+                cache.delete(oldest);
+            }
+        }
+
+        function requestTile(scale, tx, tz, generation) {
+            const key = tileKey(scale, tx, tz);
+            if (cache.has(key) || inflightKeys.has(key)) return;
+
+            const id = ++tileIdCounter;
+            const p = getParams();
+            const tw = tileWorld(scale);
+
+            inflight.set(id, { key, scale, tx, tz, generation });
+            inflightKeys.add(key);
+
+            tileQueue.push({
+                id, generation,
+                data: {
+                    type: 'render-tile', id,
+                    seed: p.seed, version: p.version,
+                    cx: tx * tw + tw / 2, cz: tz * tw + tw / 2,
+                    size: TILE_PX, scale
+                }
+            });
+        }
+
+        // ===== View Update =====
+        function positionTileLayer() {
+            const rect = container.getBoundingClientRect();
+            const scale = getScale();
+            const s = scale * zoom;
+            const ox = -viewX * zoom + rect.width / 2;
+            const oz = -viewZ * zoom + rect.height / 2;
+            tileLayer.style.transform = `translate(${ox}px, ${oz}px) scale(${s})`;
+        }
+
+        function updateView() {
+            if (workersReady === 0) return;
+            viewGeneration++;
+            const rect = container.getBoundingClientRect();
+            const scale = getScale();
+
+            positionTileLayer();
+
+            const hw = rect.width / zoom / 2, hh = rect.height / zoom / 2;
+            const txMin = w2t(viewX - hw, scale) - 1, txMax = w2t(viewX + hw, scale) + 1;
+            const tzMin = w2t(viewZ - hh, scale) - 1, tzMax = w2t(viewZ + hh, scale) + 1;
+
+            // Remove wrong-scale tiles from DOM
+            for (const child of [...tileLayer.children]) {
+                const tk = child.dataset.tk;
+                if (!tk) { child.remove(); continue; }
+                const t = cache.get(tk);
+                if (!t || t.scale !== scale) child.remove();
+            }
+
+            // Collect missing tiles with distance from center for priority sorting
+            const missing = [];
+            const ctxF = (txMin + txMax) / 2, ctzF = (tzMin + tzMax) / 2;
+
+            for (let tz = tzMin; tz <= tzMax; tz++) {
+                for (let tx = txMin; tx <= txMax; tx++) {
+                    const key = tileKey(scale, tx, tz);
+                    const existing = cache.get(key);
+                    if (existing) {
+                        if (!existing.canvas.parentNode) {
+                            existing.canvas.style.left = (tx * TILE_PX) + 'px';
+                            existing.canvas.style.top = (tz * TILE_PX) + 'px';
+                            existing.canvas.dataset.tk = key;
+                            tileLayer.appendChild(existing.canvas);
+                        }
+                    } else {
+                        const dx = tx - ctxF, dz = tz - ctzF;
+                        missing.push({ scale, tx, tz, dist: dx * dx + dz * dz });
+                    }
+                }
+            }
+
+            // Sort: center tiles first (closest to viewport center)
+            missing.sort((a, b) => a.dist - b.dist);
+
+            // Clear stale queue entries and request new tiles
+            tileQueue.length = 0;
+            for (const { scale, tx, tz } of missing) {
+                requestTile(scale, tx, tz, viewGeneration);
+            }
+            drainQueue();
+
+            drawOverlay();
+            document.getElementById('mapZoom').textContent =
+                zoom.toFixed(2) + 'x · ' + scale + 'b/px · ' + NUM_WORKERS + 'w';
+        }
+
+        // ===== Overlay =====
+        function drawOverlay() {
+            const rect = container.getBoundingClientRect();
+            overlayCanvas.width = rect.width;
+            overlayCanvas.height = rect.height;
+            overlayCtx.clearRect(0, 0, rect.width, rect.height);
+            if (markers.length === 0) return;
+
+            const p = getParams();
+            const windowBlocks = p.windowSize * 16;
+
+            markers.forEach((m, i) => {
+                const sx = (m.x - viewX) * zoom + rect.width / 2;
+                const sz = (m.z - viewZ) * zoom + rect.height / 2;
+                const rw = windowBlocks * zoom, rh = rw;
+                const rx = sx - rw / 2, rz = sz - rh / 2;
+                if (rx + rw < 0 || rx > rect.width || rz + rh < 0 || rz > rect.height) return;
+
+                overlayCtx.strokeStyle = 'rgba(59,130,246,0.7)';
+                overlayCtx.lineWidth = 2;
+                overlayCtx.setLineDash([4, 4]);
+                overlayCtx.strokeRect(rx, rz, rw, rh);
+                overlayCtx.setLineDash([]);
+                overlayCtx.fillStyle = 'rgba(59,130,246,0.08)';
+                overlayCtx.fillRect(rx, rz, rw, rh);
+
+                overlayCtx.beginPath();
+                overlayCtx.arc(sx, sz, 5, 0, Math.PI * 2);
+                overlayCtx.fillStyle = 'rgba(59,130,246,0.9)';
+                overlayCtx.fill();
+                overlayCtx.strokeStyle = 'white';
+                overlayCtx.lineWidth = 1.5;
+                overlayCtx.stroke();
+
+                overlayCtx.font = '600 11px Inter,sans-serif';
+                overlayCtx.fillStyle = 'white';
+                overlayCtx.textAlign = 'center';
+                overlayCtx.fillText('#' + (i + 1), sx, sz - 10);
+            });
+        }
+
+        // ===== Search (parallel shards across all workers) =====
+        async function doSearch() {
+            const p = getParams();
+            setStatus('搜索中...', 'loading');
+            document.getElementById('searchBtn').disabled = true;
+
+            const t0 = performance.now();
+
+            // Compute Z range in biome coords
+            const radiusBiome = Math.floor(p.radius / 4);
+            const originBz = Math.floor(p.originZ / 4);
+            const windowBiome = p.windowSize * 4;
+            const stepBiome = Math.max(Math.floor(p.windowSize / 2), 1) * 4;
+            const scanMinBz = originBz - radiusBiome;
+            const scanMaxBz = originBz + radiusBiome - windowBiome;
+
+            // Split Z range into N shards (one per worker)
+            const totalSteps = Math.max(1, Math.floor((scanMaxBz - scanMinBz) / stepBiome) + 1);
+            const nShards = Math.min(NUM_WORKERS, totalSteps);
+            const stepsPerShard = Math.ceil(totalSteps / nShards);
+
+            searchShardResults = [];
+            searchShardsPending = nShards;
+
+            const promise = new Promise((resolve, reject) => {
+                searchResolve = resolve;
+                searchReject = reject;
+            });
+
+            // Dispatch shards — send directly to workers, bypassing tile queue
+            for (let i = 0; i < nShards; i++) {
+                const startStep = i * stepsPerShard;
+                const endStep = Math.min((i + 1) * stepsPerShard - 1, totalSteps - 1);
+                const bzStart = scanMinBz + startStep * stepBiome;
+                const bzEnd = scanMinBz + endStep * stepBiome;
+
+                const shardData = {
+                    type: 'search-shard',
+                    shardId: i,
+                    seed: p.seed, version: p.version,
+                    biomeId: p.biome, windowSize: p.windowSize,
+                    originX: p.originX, originZ: p.originZ,
+                    radius: p.radius,
+                    bzStart, bzEnd
+                };
+
+                // Wait for an idle worker
+                const sendShard = () => {
+                    if (idleWorkers.length > 0) {
+                        const wIdx = idleWorkers.shift();
+                        workers[wIdx]._busy = true;
+                        workers[wIdx].postMessage(shardData);
+                    } else {
+                        setTimeout(sendShard, 20);
+                    }
+                };
+                sendShard();
+            }
+
+            try {
+                const rawResults = await promise;
+                // Merge: sort all shard results, then NMS dedup
+                rawResults.sort((a, b) =>
+                    (b.biome_chunks - a.biome_chunks) || (a.distance - b.distance)
+                );
+                const windowBlocks = p.windowSize * 16;
+                const selected = [];
+                for (const r of rawResults) {
+                    const dominated = selected.some(s => {
+                        const dx = r.x - s.x, dz = r.z - s.z;
+                        return Math.sqrt(dx * dx + dz * dz) < windowBlocks;
+                    });
+                    if (!dominated) {
+                        selected.push(r);
+                        if (selected.length >= p.count) break;
+                    }
+                }
+                const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+                markers = selected;
+                displayResults(markers, elapsed);
+                drawOverlay();
+                setStatus(`找到 ${markers.length} 个结果 · ${nShards} 分片并行 · 耗时 ${elapsed}s`, 'ready');
+            } catch (e) {
+                setStatus('搜索失败: ' + e.message, 'error');
+                console.error(e);
+            }
+            document.getElementById('searchBtn').disabled = false;
+        }
+
+        function displayResults(results, elapsed) {
+            const section = document.getElementById('resultsSection');
+            const list = document.getElementById('resultsList');
+            const countEl = document.getElementById('resultsCount');
+            if (!results || results.length === 0) {
+                section.style.display = 'block'; countEl.textContent = '0';
+                list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:13px;">未找到匹配的群系区域</div>';
+                return;
+            }
+            section.style.display = 'block';
+            countEl.textContent = results.length + ' · ' + elapsed + 's';
+            list.innerHTML = results.map((r, i) => `
+                <div class="result-item" data-x="${r.x}" data-z="${r.z}">
+                    <div class="result-rank">${i + 1}</div>
+                    <div class="result-info">
+                        <div class="result-coords">${r.x}, ${r.z}</div>
+                        <div class="result-meta">距离 ${Math.round(r.distance)} 方块 · /tp ${r.x} ~ ${r.z}</div>
+                    </div>
+                    <div class="result-chunks">${r.biome_chunks} 区块</div>
+                </div>`).join('');
+            list.querySelectorAll('.result-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    list.querySelectorAll('.result-item').forEach(el => el.classList.remove('active'));
+                    item.classList.add('active');
+                    viewX = parseInt(item.dataset.x);
+                    viewZ = parseInt(item.dataset.z);
+                    updateView();
+                });
+            });
+        }
+
+        // ===== Mouse: drag (CSS transform only, 60fps) =====
+        container.addEventListener('mousedown', e => {
+            isDragging = true; dragSX = e.clientX; dragSY = e.clientY;
+            dragVX = viewX; dragVZ = viewZ;
+            container.style.cursor = 'grabbing';
+        });
+        window.addEventListener('mousemove', e => {
+            if (workersReady === 0) return;
+            const rect = container.getBoundingClientRect();
+            const relX = (e.clientX - rect.left) / rect.width;
+            const relZ = (e.clientY - rect.top) / rect.height;
+            const bx = Math.floor(viewX + (relX - 0.5) * rect.width / zoom);
+            const bz = Math.floor(viewZ + (relZ - 0.5) * rect.height / zoom);
+            document.getElementById('mapCoords').textContent = `X: ${bx}   Z: ${bz}`;
+            if (isDragging) {
+                viewX = dragVX - (e.clientX - dragSX) / zoom;
+                viewZ = dragVZ - (e.clientY - dragSY) / zoom;
+                positionTileLayer();
+                drawOverlay();
+            }
+        });
+        window.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                container.style.cursor = 'grab';
+                updateView();
+            }
+        });
+
+        // Zoom: instant CSS scale, then async load new-res tiles
+        container.addEventListener('wheel', e => {
+            e.preventDefault();
+            const oldZoom = zoom;
+            zoom = e.deltaY < 0 ? Math.min(zoom * 1.3, 8) : Math.max(zoom / 1.3, 0.02);
+            if (zoom !== oldZoom) {
+                const rect = container.getBoundingClientRect();
+                const mx = (e.clientX - rect.left - rect.width / 2) / oldZoom;
+                const mz = (e.clientY - rect.top - rect.height / 2) / oldZoom;
+                viewX += mx * (1 - oldZoom / zoom);
+                viewZ += mz * (1 - oldZoom / zoom);
+                updateView();
+            }
+        });
+
+        // Clear cache and reload
+        function clearAndReload() {
+            for (const [k, t] of cache) {
+                if (t.canvas.parentNode) t.canvas.remove();
+            }
+            cache.clear();
+            inflightKeys.clear();
+            inflight.clear();
+            tileQueue.length = 0;
+            updateView();
+        }
+
+        document.getElementById('searchBtn').addEventListener('click', doSearch);
+        document.getElementById('renderBtn').addEventListener('click', clearAndReload);
+        document.getElementById('seed').addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !document.getElementById('searchBtn').disabled) doSearch();
+        });
+        document.getElementById('seed').addEventListener('change', clearAndReload);
+        document.getElementById('version').addEventListener('change', clearAndReload);
+        window.addEventListener('resize', () => { if (workersReady > 0) updateView(); });
+
+        // ===== Start =====
+        createWorkers();
+        setStatus(`加载 WASM... (0/${NUM_WORKERS})`, 'loading');
+    </script>
+</body>
+</html>
